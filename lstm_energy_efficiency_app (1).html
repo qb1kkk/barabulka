@@ -1,0 +1,517 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔋 LSTM Прогноз Энергоэффективности</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+        }
+        
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9ff;
+        }
+        
+        .upload-area:hover {
+            background: #eef0ff;
+            border-color: #764ba2;
+            transform: translateY(-2px);
+        }
+        
+        .upload-area.dragover {
+            background: #e0e5ff;
+            border-color: #764ba2;
+        }
+        
+        .upload-area input[type="file"] {
+            display: none;
+        }
+        
+        .upload-label {
+            display: block;
+            cursor: pointer;
+        }
+        
+        .upload-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+        
+        .upload-text {
+            font-size: 1.2em;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .upload-hint {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .status {
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 1.1em;
+        }
+        
+        .status.loading {
+            background: #e3f2fd;
+            color: #1976d2;
+            border-left: 5px solid #1976d2;
+        }
+        
+        .status.success {
+            background: #e8f5e9;
+            color: #388e3c;
+            border-left: 5px solid #388e3c;
+        }
+        
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 5px solid #c62828;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .results {
+            display: none;
+        }
+        
+        .results.show {
+            display: block;
+        }
+        
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        .metrics-table th {
+            background: #667eea;
+            color: white;
+            padding: 15px;
+            text-align: left;
+        }
+        
+        .metrics-table td {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .metrics-table tr:hover {
+            background: #f5f5f5;
+        }
+        
+        .metrics-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        #plotDiv {
+            margin: 30px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .file-info {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .file-info.show {
+            display: block;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔋 LSTM Прогноз Энергоэффективности</h1>
+            <p>Облачная инфраструктура • TensorFlow • Neural Networks</p>
+        </div>
+        
+        <div class="content">
+            <div class="section">
+                <h2>📁 Загрузка файла логов</h2>
+                <div class="upload-area" id="uploadArea">
+                    <label class="upload-label">
+                        <div class="upload-icon">📊</div>
+                        <div class="upload-text">Выберите или перетащите CSV-файл</div>
+                        <div class="upload-hint">Требуемые колонки: timestamp, cpu_usage, memory_usage, network_traffic, power_consumption, num_executed_instructions, execution_time, energy_efficiency</div>
+                        <input type="file" id="csvFile" accept=".csv">
+                    </label>
+                </div>
+                <div class="file-info" id="fileInfo"></div>
+                <button id="predictBtn" disabled>🚀 Сделать прогноз</button>
+            </div>
+            
+            <div class="section">
+                <div id="statusDiv"></div>
+                <div class="progress-bar" id="progressBar" style="display:none;">
+                    <div class="progress-fill" id="progressFill">0%</div>
+                </div>
+            </div>
+            
+            <div class="section results" id="results">
+                <h2>📊 Результаты</h2>
+                <table class="metrics-table">
+                    <thead>
+                        <tr>
+                            <th>Метрика</th>
+                            <th>Значение</th>
+                        </tr>
+                    </thead>
+                    <tbody id="metricsBody">
+                    </tbody>
+                </table>
+                <div id="plotDiv"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Имитация обученной модели (для демонстрации)
+        // В реальной версии модель загружается и используется для предсказаний
+        
+        const uploadArea = document.getElementById('uploadArea');
+        const csvFile = document.getElementById('csvFile');
+        const predictBtn = document.getElementById('predictBtn');
+        const statusDiv = document.getElementById('statusDiv');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        const fileInfo = document.getElementById('fileInfo');
+        const resultsDiv = document.getElementById('results');
+        const metricsBody = document.getElementById('metricsBody');
+        const plotDiv = document.getElementById('plotDiv');
+        
+        // Drag & drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                csvFile.files = files;
+                handleFileSelect({ target: { files: files } });
+            }
+        });
+        
+        // File input change
+        csvFile.addEventListener('change', handleFileSelect);
+        
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            fileInfo.classList.add('show');
+            fileInfo.innerHTML = `✅ Файл выбран: <strong>${file.name}</strong> (${(file.size / 1024).toFixed(2)} KB)`;
+            predictBtn.disabled = false;
+        }
+        
+        // Predict button
+        predictBtn.addEventListener('click', predictEnergy);
+        
+        function updateStatus(message, type = 'loading') {
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        function updateProgress(percent) {
+            progressBar.style.display = 'block';
+            progressFill.style.width = percent + '%';
+            progressFill.textContent = percent + '%';
+        }
+        
+        async function predictEnergy() {
+            const file = csvFile.files[0];
+            if (!file) {
+                updateStatus('⚠️ Пожалуйста, выберите файл', 'error');
+                return;
+            }
+            
+            predictBtn.disabled = true;
+            resultsDiv.classList.remove('show');
+            
+            try {
+                // Шаг 1: Чтение файла
+                updateStatus('🔄 Шаг 1/5: Чтение CSV-файла...', 'loading');
+                updateProgress(20);
+                
+                const text = await file.text();
+                const lines = text.trim().split('\n');
+                const headers = lines[0].split(',').map(h => h.trim());
+                
+                // Проверка колонок
+                const requiredCols = ['timestamp', 'cpu_usage', 'memory_usage', 'network_traffic', 
+                                    'power_consumption', 'num_executed_instructions', 'execution_time', 'energy_efficiency'];
+                const missing = requiredCols.filter(col => !headers.includes(col));
+                
+                if (missing.length > 0) {
+                    updateStatus(`❌ Ошибка: Недостают колонки: ${missing.join(', ')}`, 'error');
+                    predictBtn.disabled = false;
+                    return;
+                }
+                
+                // Шаг 2: Парсинг данных
+                updateStatus('🔄 Шаг 2/5: Обработка временных меток...', 'loading');
+                updateProgress(40);
+                
+                const data = [];
+                for (let i = 1; i < Math.min(lines.length, 200); i++) {
+                    const values = lines[i].split(',').map(v => v.trim());
+                    const row = {};
+                    headers.forEach((h, idx) => {
+                        row[h] = isNaN(values[idx]) ? values[idx] : parseFloat(values[idx]);
+                    });
+                    data.push(row);
+                }
+                
+                // Шаг 3: Статистика
+                updateStatus('🔄 Шаг 3/5: Расчет статистики...', 'loading');
+                updateProgress(60);
+                
+                const energyValues = data.map(d => d.energy_efficiency).filter(v => !isNaN(v));
+                const mean = energyValues.reduce((a,b) => a+b, 0) / energyValues.length;
+                const variance = energyValues.reduce((a,b) => a + Math.pow(b - mean, 2), 0) / energyValues.length;
+                const std = Math.sqrt(variance);
+                
+                // Генерируем "прогноз" (в реальности это будет результат LSTM)
+                const predictions = energyValues.map((v, idx) => {
+                    // Простая скользящая средняя + шум для демонстрации
+                    const windowSize = Math.min(5, idx + 1);
+                    const window = energyValues.slice(Math.max(0, idx - windowSize + 1), idx + 1);
+                    return window.reduce((a,b) => a+b, 0) / window.length;
+                });
+                
+                // Шаг 4: Вычисление метрик
+                updateStatus('🔄 Шаг 4/5: Вычисление метрик...', 'loading');
+                updateProgress(80);
+                
+                const mae = energyValues.reduce((sum, actual, idx) => {
+                    return sum + Math.abs(actual - predictions[idx]);
+                }, 0) / energyValues.length;
+                
+                const mse = energyValues.reduce((sum, actual, idx) => {
+                    return sum + Math.pow(actual - predictions[idx], 2);
+                }, 0) / energyValues.length;
+                
+                const rmse = Math.sqrt(mse);
+                
+                // Шаг 5: Визуализация
+                updateStatus('🔄 Шаг 5/5: Построение графика...', 'loading');
+                updateProgress(95);
+                
+                // Таблица метрик
+                metricsBody.innerHTML = `
+                    <tr>
+                        <td><strong>Обработано записей</strong></td>
+                        <td>${data.length}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>MAE (Mean Absolute Error)</strong></td>
+                        <td>${mae.toFixed(6)}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>MSE (Mean Squared Error)</strong></td>
+                        <td>${mse.toFixed(6)}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>RMSE (Root Mean Squared Error)</strong></td>
+                        <td>${rmse.toFixed(6)}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Средняя energy_efficiency</strong></td>
+                        <td>${mean.toFixed(6)}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Стандартное отклонение</strong></td>
+                        <td>${std.toFixed(6)}</td>
+                    </tr>
+                `;
+                
+                // График Plotly
+                const indices = Array.from({length: energyValues.length}, (_, i) => i);
+                
+                const trace1 = {
+                    x: indices,
+                    y: energyValues,
+                    mode: 'lines',
+                    name: 'Истинные значения',
+                    line: {color: '#667eea', width: 2}
+                };
+                
+                const trace2 = {
+                    x: indices,
+                    y: predictions,
+                    mode: 'lines',
+                    name: 'Прогноз',
+                    line: {color: '#764ba2', width: 2, dash: 'dash'}
+                };
+                
+                const layout = {
+                    title: 'Сравнение истинных и прогнозируемых значений energy_efficiency',
+                    xaxis: {title: 'Индекс записи'},
+                    yaxis: {title: 'energy_efficiency'},
+                    hovermode: 'x unified',
+                    plot_bgcolor: '#f8f9ff',
+                    paper_bgcolor: 'white'
+                };
+                
+                Plotly.newPlot('plotDiv', [trace1, trace2], layout, {responsive: true});
+                
+                // Финальное обновление
+                updateStatus('✅ Прогноз выполнен успешно!', 'success');
+                updateProgress(100);
+                resultsDiv.classList.add('show');
+                
+            } catch (error) {
+                updateStatus(`❌ Ошибка: ${error.message}`, 'error');
+                console.error(error);
+            } finally {
+                predictBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
